@@ -1,0 +1,109 @@
+1. Review Collection for each restaurant.
+2. Cleaning of reviews per document.
+3. Bi-gram creation
+4. Topic Modeling
+
+4 a. Convert Docs into mallet format
+bin/mallet import-dir --input /media/krowd/New\ Volume/DUBAI-RESTAURANT/CollectReviews-CreateBigram/zomato_dubai_formatted_bigram --output /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato_dubai_input.mallet  --keep-sequence --remove-stopwords --extra-stopwords stoplists/en_extra.uniq.txt
+
+4 b. training 
+
+bin/mallet train-topics --input /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato_dubai_input.mallet --num-topics 180 --num-iterations 2000 --num-threads 8 --optimize-interval 20 --optimize-burn-in 200 --num-top-words 30 --output-model-interval 500 --output-model /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato_dubai_model.model --word-topic-counts-file /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/words.topic.txt --output-state /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato_dubai_lda_restaurents.state.gz --output-state-interval 500 --output-doc-topics /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato-duabi-reviews-topic-composition.txt --inferencer-filename lda_zomato_dubai_restaurents.inferencer.model --output-topic-keys /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato-dubai-quick-look.txt
+ 
+
+
+
+trip london and zomato dubai
+
+bin/mallet import-dir --input /media/krowd/New\ Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/CombinedBigrams --output /media/krowd/New\ Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/zomato_dubai_trip_london_input.mallet  --keep-sequence --remove-stopwords --extra-stopwords stoplists/en_extra.uniq.txt
+
+
+bin/mallet train-topics --input /media/krowd/New\ Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/zomato_dubai_trip_london_input.mallet --num-topics 180 --num-iterations 2000 --num-threads 8 --optimize-interval 20 --optimize-burn-in 200 --num-top-words 30 --output-model-interval 500 --output-model /media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/zomato_dubai_trip_london_model.model --word-topic-counts-file /media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/words.topic.txt --output-state //media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/zomatodubai_trip_london_lda_restaurents.state.gz --output-state-interval 500 --output-doc-topics /media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/reviews-topic-composition.txt  --output-topic-keys /media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/quick-look.txt
+
+
+---create new inferencer---
+bin/mallet train-topics --input trip_london.mallet --num-topics 180 --num-iterations 2000 --num-threads 8 --optimize-interval 20 --optimize-burn-in 200 
+--num-top-words 100 --output-model-interval 500 --output-model lda_restaurents.model.3 --word-topic-counts-file words.topic.txt 
+--output-state lda_restaurents.3.state.gz --output-state-interval 500 --output-doc-topics reviews-topic-composition.3.txt 
+--inferencer-filename lda_restaurents.inferencer.3.model --output-topic-keys quick-look.3.txt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1. Review Collection for each restaurant.
+2. Cleaning of reviews per document.
+3. Bi-gram creation
+4. Topic Modeling
+
+4 a. Convert Docs into mallet format
+bin/mallet import-dir --input /media/krowd/New Volume/DUBAI-RESTAURANT/CollectReviews-CreateBigram/zomato_dubai_formatted_bigram --output /media/krowd/New Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato_dubai_7june_input.mallet  --keep-sequence --remove-stopwords --extra-stopwords stoplists/en_extra.uniq.txt
+
+4 b. training 
+
+bin/mallet train-topics --input /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato_dubai_7june_input.mallet --num-topics 180 --num-iterations 2000 --num-threads 8 --optimize-interval 20 --optimize-burn-in 200 --num-top-words 30 --output-model-interval 500 --output-model /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato_dubai_7june_model.model --word-topic-counts-file /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/words.topic.txt --output-state /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/omatodubai_7june_lda_restaurents.state.gz --output-state-interval 500 --output-doc-topics /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/reviews-topic-composition.txt  --output-topic-keys /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/quick-look.txt
+ 
+
+
+
+trip london and zomato dubai
+
+bin/mallet import-dir --input /media/krowd/New\ Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/CombinedBigrams --output /media/krowd/New\ Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/zomato_dubai_trip_london_input.mallet  --keep-sequence --remove-stopwords --extra-stopwords stoplists/en_extra.uniq.txt
+
+
+bin/mallet train-topics --input /media/krowd/New\ Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/zomato_dubai_trip_london_input.mallet --num-topics 180 --num-iterations 2000 --num-threads 8 --optimize-interval 20 --optimize-burn-in 200 --num-top-words 30 --output-model-interval 500 --output-model /media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/zomato_dubai_trip_london_model.model --word-topic-counts-file /media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/words.topic.txt --output-state //media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/zomatodubai_trip_london_lda_restaurents.state.gz --output-state-interval 500 --output-doc-topics /media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/reviews-topic-composition.txt  --output-topic-keys /media/krowd/New Volume/DUBAI-RESTAURANT/zomato-dubai-trip-london/quick-look.txt
+
+
+export _JAVA_OPTIONS="-Xmx1g"
+make sure to check the correct file path of topic modelling and formatted bigram in topic modelling flow.
+
+using pre-trained model
+convert into mallet
+bin/mallet import-dir --input /media/krowd/New\ Volume/DUBAI-RESTAURANT/CollectReviews-CreateBigram/zomato_dubai_formatted_bigram --output /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-modelling-final/zomato_dubai_final.mallet --use-pipe-from /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/zomato_dubai_input.mallet --keep-sequence --remove-stopwords --extra-stopwords stoplists/en_extra.uniq.txt
+
+
+bin/mallet infer-topics --inferencer /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-Modelling/lda_zomato_dubai_restaurents.inferencer.model --input /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-modelling-final/zomato_dubai_final.mallet --output-doc-topics /media/krowd/New\ Volume/DUBAI-RESTAURANT/Topic-modelling-final/reviews-zomato-dubai-topic-composition.txt --num-iterations 1000

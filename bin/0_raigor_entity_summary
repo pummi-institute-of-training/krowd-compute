@@ -1,0 +1,111 @@
+#!/usr/bin/env node
+
+/**
+ * Using knex for connection pooling and getting all results in one go.
+ */
+require("console-stamp")(console, {
+    pattern: "dd/mm/yyyy HH:MM:ss.l",
+    colors: {
+        stamp: "green",
+        label: "blue"
+    }
+});
+var und = require('lodash');
+var crypto = require('crypto');
+
+var knex = require('./knex');
+
+var INSERT_BATCH_SIZE_LIMIT = 5;
+//collecting all reviews specific to city only
+var query = "SELECT * from reviews where entity_id IN (SELECT e.id FROM entity e LEFT JOIN service_entity es ON es.id = e.entity_id)";
+
+knex.raw(query).then(function(rawResult) {
+    return rawResult[0];
+}).then(function(rows) {
+    var groupedReviewsByEntity = und.groupBy(rows, function(row) {
+        return row.entity_id
+    });
+    return und.map(Object.keys(groupedReviewsByEntity), function(key) {
+        var entity = groupedReviewsByEntity[key];
+        var summary = new entity_summary_model({
+            id: key,
+            entity_type: 'service',
+            reviews: entity
+        });
+       
+        return summary;
+    });
+}).then(function(rows) {
+    console.log('%d New entities to be Updated.', rows.length);
+    var batchInsertQuery = 'INSERT INTO entity_summary (id, one_star_count, two_star_count, three_star_count, four_star_count, five_star_count, rating_count, final_rating, positive_reviews_count, negative_reviews_count, entity_id) VALUES ';
+    var batchUpdateQuery = 'UPDATE entity SET updated_summary = 1 where id IN (';
+    var duplicateKeyQuery = ' ON DUPLICATE KEY UPDATE one_star_count=VALUES(one_star_count), two_star_count=VALUES(two_star_count), three_star_count=VALUES(three_star_count), four_star_count=VALUES(four_star_count), five_star_count=VALUES(five_star_count), rating_count=VALUES(rating_count), final_rating=VALUES(final_rating), positive_reviews_count=VALUES(positive_reviews_count), negative_reviews_count=VALUES(negative_reviews_count);'
+    var values = '';
+    var updateids = '';
+    var numofupdates = 0;
+    for (var i = 0, ii = rows.length; i < ii; ++i) {
+        var s = rows[i];
+        values += ' (\'' + [s.id, s.one_star_count, s.two_star_count, s.three_star_count, s.four_star_count, s.five_star_count, s.rating_count, s.final_rating, s.positive_reviews_count, s.negative_reviews_count, s.entity_id].join('\',\'') + '\'), ';
+        updateids += '\'' + s.entity_id + '\',';
+        if ((i % INSERT_BATCH_SIZE_LIMIT == 0 || i == rows.length - 1) && i) {
+            knex.raw(batchInsertQuery + values.replace(/,\s*$/, "") + duplicateKeyQuery).then(function() {
+                console.log('Inserted %d records into the db', INSERT_BATCH_SIZE_LIMIT);
+                return this;
+            }).then(function(uids) {
+                return function() {
+                    return knex.raw(batchUpdateQuery + uids.replace(/,\s*$/, "") + ');').then(function() {
+                        numofupdates++;
+                        console.log('Updated all the %s entities', uids);
+                        if (numofupdates == Math.ceil(rows.length / INSERT_BATCH_SIZE_LIMIT)) {
+                            console.log('ALL ENTITY SUMMARIES NOW BELONG TO US');
+                            knex.destroy();
+                        }
+                    })
+                }
+            }(updateids));
+            values = '';
+            updateids = '';
+        }
+    }
+}).catch(function(e) {
+    console.error(e);
+});
+
+function entity_summary_model(model) {
+    this.id = [model.entity_type.toLowerCase(), crypto.randomBytes(7).toString('hex')].join('_');
+    this.one_star_count = model.reviews.map(function(r) {
+        return Number(r.rating.match(/\d+/g)[0])
+    }).filter(function(r) {
+        return r == 1 || r == 1.5
+    }).length;
+    this.two_star_count = model.reviews.map(function(r) {
+        return Number(r.rating.match(/\d+/g)[0])
+    }).filter(function(r) {
+        return r == 2 || r == 2.5
+    }).length;
+    this.three_star_count = model.reviews.map(function(r) {
+        return Number(r.rating.match(/\d+/g)[0])
+    }).filter(function(r) {
+        return r == 3 || r == 3.5
+    }).length;
+    this.four_star_count = model.reviews.map(function(r) {
+        return Number(r.rating.match(/\d+/g)[0])
+    }).filter(function(r) {
+        return r == 4 || r == 4.5
+    }).length;
+    this.five_star_count = model.reviews.map(function(r) {
+        return Number(r.rating.match(/\d+/g)[0])
+    }).filter(function(r) {
+        return r == 5 
+    }).length;
+    this.rating_count = model.reviews.length;
+    if (model.reviews.length > 0) {
+        var score = this.one_star_count + (2 * this.two_star_count) + (3 * this.three_star_count) + (4 * this.four_star_count) + (5 * this.five_star_count)
+        this.final_rating = (score / (model.reviews.length)).toFixed(4);
+    } else {
+        this.final_rating = 0;
+    }
+    this.positive_reviews_count = this.three_star_count + this.four_star_count + this.five_star_count;
+    this.negative_reviews_count = this.one_star_count + this.two_star_count;
+    this.entity_id = model.id;
+}

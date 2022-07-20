@@ -1,0 +1,14 @@
+#first Create folders in root (/mnt)
+
+import os
+
+ROOT = '/home/ubuntu'
+
+ROOT_FOLDER = 'TRIPADVISOR_LONDON'
+
+REVIEW = '_REVIEW'
+FORMATTED = '_FORMATTED'
+FORMATTED_BIGRAM = '_FORMATTED_BIGRAM' 
+MODEL = '_MODEL'
+TOPIC_MODEL = '_TOPICMODEL'
+

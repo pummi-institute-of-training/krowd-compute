@@ -1,0 +1,74 @@
+#!/usr/bin/env node
+
+/**
+ * Using knex for connection pooling and getting all results in one go.
+ */
+require("console-stamp")(console, {
+    pattern: "dd/mm/yyyy HH:MM:ss.l",
+    colors: {
+        stamp: "green",
+        label: "blue"
+    }
+});
+var trim = require('trim');
+var und = require('lodash');
+
+var knex = require('./knex');
+
+var INSERT_BATCH_SIZE_LIMIT = 250;
+var HELPFULLNESS_AVG = 0;
+var HELPFULLNESS_STD = 0;
+
+var SELECT_STATS = 'SELECT STDDEV_POP(u.follower_count) as std , AVG(u.follower_count) as avg FROM users u WHERE u.id IN (select DISTINCT user_id FROM reviews WHERE entity_id IN (SELECT e.id FROM entity e, service_entity se WHERE e.entity_id = se.id))';
+
+var SELECT_QUERY = 'SELECT u.id, u.follower_count FROM users u WHERE u.id IN (select DISTINCT user_id FROM reviews WHERE entity_id IN (SELECT e.id FROM entity e, service_entity se WHERE e.entity_id = se.id))';
+
+knex.raw(SELECT_STATS).then(function(rawResult) {
+    return rawResult[0][0];
+}).then(function(stats) {
+    HELPFULLNESS_AVG = stats.avg;
+    HELPFULLNESS_STD = stats.std;
+}).then(function() {
+    knex.raw(SELECT_QUERY).then(function(rawReviews) {
+        return rawReviews[0];
+    }).then(function(users) {
+        var caseStatement = '';
+        var listOfIdsToBeUpdates = '';
+        var numofupdates = 0;
+        for (var i = 0, ii = users.length; i < ii; ++i) {
+            var user = users[i];
+//            var helpfulCount = user.follower_count ? Number(String(user.follower_count).replace('"','').trim()) : 0;
+            var helpfulCount = user.follower_count ? Number(String(user.follower_count).replace("Followers","").replace("Follower","").trim()) : 0;  
+          console.log("followers count:",helpfulCount);
+	    var helpfullnessScore = calculateHelpfulnessScore(helpfulCount);
+            console.log('Helpfullness Score for user id %s is %d', user.id, helpfullnessScore);
+            caseStatement += ' when id = \'' + user.id + '\' THEN ' + helpfullnessScore;
+            listOfIdsToBeUpdates += '\'' + user.id + '\',';
+            if ((i % INSERT_BATCH_SIZE_LIMIT == 0 || i == users.length - 1) && i) {
+                var updateQuery = 'UPDATE users SET folink_user_reviewer_rank =  CASE ' + caseStatement + ' END, is_updated = 1 where id IN(' + listOfIdsToBeUpdates.replace(/,\s*$/, "") + ');';
+                knex.raw(updateQuery).then(function() {
+                    numofupdates++;
+                    console.log('Helpfullness scores have been updated for %d users', INSERT_BATCH_SIZE_LIMIT);
+                    if (numofupdates == Math.ceil(ii / INSERT_BATCH_SIZE_LIMIT)) {
+                        console.log('All users have been updated!');
+                        knex.destroy();
+                    }
+                });
+                caseStatement = '';
+                listOfIdsToBeUpdates = '';
+            }
+        }
+    }).catch(function (e) {
+        console.log(e);
+    });
+}).catch(function(e) {
+    console.error(e);
+});
+
+function calculateHelpfulnessScore(helpfulCount) {
+    var helpfullnessScore = 1;
+    if ((helpfulCount - HELPFULLNESS_AVG) > 0) {
+        helpfullnessScore = 1 + ((helpfulCount - HELPFULLNESS_AVG) / HELPFULLNESS_STD);
+    }
+    return helpfullnessScore;
+}

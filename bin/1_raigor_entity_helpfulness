@@ -1,0 +1,71 @@
+#!/usr/bin/env node
+
+/**
+ * Using knex for connection pooling and getting all results in one go.
+ */
+require("console-stamp")(console, {
+    pattern: "dd/mm/yyyy HH:MM:ss.l",
+    colors: {
+        stamp: "green",
+        label: "blue"
+    }
+});
+var trim = require('trim');
+var und = require('lodash');
+var knex = require('./knex');
+
+var INSERT_BATCH_SIZE_LIMIT = 250;
+var HELPFULLNESS_AVG = 0;
+var HELPFULLNESS_STD = 0;
+
+var SELECT_STATS = 'SELECT STDDEV_POP(a.helpful_count) as std , AVG(a.helpful_count) as avg from reviews a LEFT JOIN entity b on b.id = a.entity_id LEFT JOIN service_entity c ON b.entity_id = c.id';
+
+var SELECT_QUERY = 'SELECT r.id, r.helpful_count FROM reviews r WHERE r.entity_id IN (SELECT a.id FROM entity a LEFT JOIN service_entity b ON b.id = a.entity_id)';
+
+knex.raw(SELECT_STATS).then(function(rawResult) {
+    return rawResult[0][0];
+}).then(function(stats) {
+    HELPFULLNESS_AVG = stats.avg;
+    HELPFULLNESS_STD = stats.std;
+}).then(function() {
+    knex.raw(SELECT_QUERY).then(function(rawReviews) {
+        return rawReviews[0];
+    }).then(function(reviews) {
+        var caseStatement = '';
+        var listOfIdsToBeUpdates = '';
+        var numofupdates = 0;
+        for (var i = 0, ii = reviews.length; i < ii; ++i) {
+            var review = reviews[i];
+            var helpfulCount = review.helpful_count ? Number(String(review.helpful_count).replace('"','').trim()) : 0;
+            var helpfullnessScore = calculateHelpfulnessScore(helpfulCount);
+            console.log('Helpfullness Score for entity id %s is %d', review.id, helpfullnessScore);
+            caseStatement += ' when id = \'' + review.id + '\' THEN ' + helpfullnessScore;
+            listOfIdsToBeUpdates += '\'' + review.id + '\',';
+            if ((i % INSERT_BATCH_SIZE_LIMIT == 0 || i == reviews.length - 1) && i) {
+                var updateQuery = 'UPDATE reviews SET hv_per_review =  CASE ' + caseStatement + ' END, hv_calculated = 1 where id IN(' + listOfIdsToBeUpdates.replace(/,\s*$/, "") + ');';
+                knex.raw(updateQuery).then(function() {
+                    numofupdates++;
+                    console.log('Helpfullness scores have been updated for %d entites', INSERT_BATCH_SIZE_LIMIT);
+                    if (numofupdates == Math.ceil(ii / INSERT_BATCH_SIZE_LIMIT)) {
+                        console.log('All reviews have been updated!');
+                        knex.destroy();
+                    }
+                });
+                caseStatement = '';
+                listOfIdsToBeUpdates = '';
+            }
+        }
+    }).catch(function (e) {
+        console.log(e);
+    });
+}).catch(function(e) {
+    console.error(e);
+});
+
+function calculateHelpfulnessScore(helpfulCount) {
+    var helpfullnessScore = 1;
+    if ((helpfulCount - HELPFULLNESS_AVG) > 0) {
+        helpfullnessScore = 1 + ((helpfulCount - HELPFULLNESS_AVG) / HELPFULLNESS_STD);
+    }
+    return helpfullnessScore;
+}

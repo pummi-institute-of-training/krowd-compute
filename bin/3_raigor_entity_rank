@@ -1,0 +1,142 @@
+#!/usr/bin/env node
+
+/**
+ * Using knex for connection pooling and getting all results in one go.
+ */
+require("console-stamp")(console, {
+    pattern: "dd/mm/yyyy HH:MM:ss.l",
+    colors: {
+        stamp: "green",
+        label: "blue"
+    }
+});
+var trim = require('trim');
+var und = require('lodash');
+
+var knex = require('./knex');
+
+
+var INSERT_BATCH_SIZE_LIMIT = 250;
+
+var SELECT_QUERY = 'SELECT r.hv_per_review, u.folink_user_reviewer_rank, r.reviewed_on, es.final_rating, es.rating_count, es.positive_reviews_count ,r.entity_id, r.rating from reviews r LEFT JOIN users u on u.id = r.user_id LEFT JOIN entity_summary es ON es.entity_id = r.entity_id WHERE r.entity_id IN (SELECT a.id FROM entity a LEFT JOIN service_entity sc ON sc.id = a.entity_id)';
+
+knex.raw(SELECT_QUERY).then(function(rawResult) {
+    return rawResult[0];
+}).then(function(rows) {
+    var groupedReviewsByEntity = und.groupBy(rows, function(row) {
+        return row.entity_id
+    });
+    return und.map(Object.keys(groupedReviewsByEntity), function(key) {
+        var reviews = groupedReviewsByEntity[key];
+        var entity = formEntityFromReviews(reviews);
+        var scores = calculateThaKrowdScore(entity);
+        return {
+            entity_id: key,
+            score: scores[0],
+            weightedScore: scores[1]
+        };
+    });
+}).then(function(entities) {
+    var caseStatement = '';
+    var caseStatementWeighted = '';
+    var listOfIdsToBeUpdates = '';
+    var numofupdates = 0;
+    for (var i = 0, ii = entities.length; i < ii; ++i) {
+        
+        var entity = entities[i];
+        
+        console.log('thaKrowd Score for Entity Summary entity id %s is %d', entity.entity_id, entity.score);
+        caseStatement += ' when entity_id = \'' + entity.entity_id + '\' THEN ' + entity.score;
+        caseStatementWeighted += ' when entity_id = \'' + entity.entity_id + '\' THEN ' + entity.weightedScore;
+        listOfIdsToBeUpdates += '\'' + entity.entity_id + '\',';
+        if ((i % INSERT_BATCH_SIZE_LIMIT == 0 || i == entities.length - 1) && i) {
+            var updateQuery = 'UPDATE entity_summary SET global_rank = CASE ' + caseStatement + ' END, folink_rating = CASE ' + caseStatementWeighted + ' END where entity_id IN (' + listOfIdsToBeUpdates.replace(/,\s*$/, "") + ');';
+            knex.raw(updateQuery).then(function() {
+                numofupdates++;
+                console.log('thaKrowd scores have been updated for %d entites', INSERT_BATCH_SIZE_LIMIT);
+                if (numofupdates == Math.ceil(ii / INSERT_BATCH_SIZE_LIMIT)) {
+                    console.log('All entities have been updated!');
+                    knex.destroy();
+                }
+            });
+            caseStatement = '';
+            caseStatementWeighted = '';
+            listOfIdsToBeUpdates = '';
+        }
+    }
+}).catch(function(e) {
+    console.error(e);
+});
+
+function calculateThaKrowdScore(entity) {
+    var sum_of_product_of_dhs = 0,
+        sum_of_product_of_dhrs = 0,
+        entity_score_weighted = 0,
+        entity_score = 0;
+
+    var reviews = entity.reviewList,
+        posNumOfReviews = entity.posNumOfReviews,
+        totalNumberOfReviews = entity.totalNumberOfReviews;
+
+    reviews.forEach(function(review) {
+        sum_of_product_of_dhs += (review.helpfullnessOfReview * review.rankOfReviewer * review.durabilityOfReview);
+        sum_of_product_of_dhrs += (review.helpfullnessOfReview * review.rankOfReviewer * review.durabilityOfReview * review.ratingScore);
+    });
+
+    if (totalNumberOfReviews && sum_of_product_of_dhs) {
+        entity_score_weighted = (sum_of_product_of_dhrs / sum_of_product_of_dhs);
+        entity_score = (sum_of_product_of_dhrs / sum_of_product_of_dhs) * wilson_score(posNumOfReviews, totalNumberOfReviews);
+    }
+
+    return [entity_score,entity_score_weighted];
+}
+
+function formEntityFromReviews(reviews) {
+    return {
+        reviewList: formReviews(reviews),
+        posNumOfReviews: reviews.length ? Number(reviews[0].positive_reviews_count) : 0,
+        totalNumberOfReviews: reviews.length ? Number(reviews[0].rating_count) : 0
+    }
+}
+
+function formReviews(reviews) {
+    return reviews.map(function(review) {
+        return {
+            helpfullnessOfReview: Number(review.hv_per_review),
+            rankOfReviewer: Number(review.folink_user_reviewer_rank),
+            durabilityOfReview: calculateDurabilityFactor(review.reviewed_on),
+            ratingScore: Number(review.rating.match(/\d+/g)[0])
+        }
+    });
+}
+
+function calculateDurabilityFactor(reviewed_on) {
+    var review_date = new Date(trim(String(reviewed_on).replace(' NEW', ''))).valueOf();
+    //var current_date = new Date().valueOf();
+    var current_date = new Date("2021-05-01T13:27:53.797Z").valueOf(); //2019-07-12T13:27:53.797Z(old value);
+    var diff = convertMS(current_date - review_date);
+    return 1 - Math.exp(-Math.exp(-0.045 * (Math.ceil(diff / 7) - 65)));
+}
+
+function convertMS(ms) {
+    var d, h, m, s;
+    s = Math.floor(ms / 1000);
+    m = Math.floor(s / 60);
+    s = s % 60;
+    h = Math.floor(m / 60);
+    m = m % 60;
+    d = Math.floor(h / 24);
+    h = h % 24;
+    return d;
+}
+
+function wilson_score(pos, n) {
+    if (n == 0) {
+        return 0;
+    }
+    var z, phat;
+    // Corresponds to an 99.975% confidence on the entities with least amount of reviews.
+    z = 3.6622599308876151;
+    phat = 1 * pos / n;
+    return (phat + z*z/(2*n) - z * Math.sqrt((phat*(1-phat)+z*z/(4*n))/n))/(1+z*z/n);
+}

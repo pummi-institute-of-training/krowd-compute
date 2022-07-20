@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+
+/**
+ * Using knex for connection pooling and getting all results in one go.This scripts will concate all reviews together at one place corresponding to a restauratant
+ * with file name as id of entity table. like Name = entity_service_12kskic333k333k33
+ */
+require("console-stamp")(console, {
+    pattern: "dd/mm/yyyy HH:MM:ss.l",
+    colors: {
+        stamp: "green",
+        label: "blue"
+    }
+});
+//import the required libraries
+var fs = require('fs');
+const { MongoClient } = require("mongodb");
+var url = "mongodb://mongoadmin:krowd_7x6t_mongodb_admin@35.178.210.124:27709/admin";
+const config = {
+  connectTimeoutMS: 5000,
+  useUnifiedTopology: false
+}
+
+const client = new MongoClient(url,config);
+
+async function run(city, country, db_name) {
+    try {
+      await client.connect();
+      const path = '/home/ubuntu/TRIPADVISOR_LONDON/TRIPADVISOR_LONDON_REVIEW/'
+      const database = client.db(db_name);
+      const movies = database.collection("Restaurant");
+      const query = { city: city, country: country, reviews: {"$exists": true}};
+      var total = await movies.countDocuments(query);
+      console.log(total)
+      var batch_size = 5
+      var current_index = 0
+      while(current_index<total) {
+        results = await movies.find(query, {'reviews': 1, "_id": 1}).skip(current_index).limit(batch_size)
+        while (await results.hasNext()) {
+            var val = await results.next()
+            var data = ''
+            for(var i=0; i<val.reviews.length; i++) {
+                data+=val.reviews[i].review_description
+                data+='\n'
+            }
+            fs.writeFileSync(path+'entity_'+val._id + '.txt', data, 'utf-8');
+            console.log(path+'entity_'+val._id+'.txt' + ' written.');
+         }
+         current_index+=batch_size;
+      }
+
+      
+    } finally {
+      await client.close();
+    }
+  }
+
+
+
+var city = 'London'
+var country = "UK"
+var db_name = "TripadvisorRestaurantsNew"
+run(city,country, db_name).catch(console.results);
+
+

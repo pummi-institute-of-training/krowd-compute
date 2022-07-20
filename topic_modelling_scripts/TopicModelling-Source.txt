@@ -1,0 +1,122 @@
+{
+    Topic Modelling and Bigram creation heppens here
+    ssh -i "krowd.pem" ubuntu@ec2-34-207-164-226.compute-1.amazonaws.com
+    running on amazon N. Virginia
+    highcompute instance name m4.2xlarge
+
+    To Do :
+        Increase the disk space to around 200GB
+
+    steps: 
+    a. Bigrams creation
+        1. We pull all the reviews together into one folder from the database where we keep crawled data.
+        2. Cleaned the pulled data.
+        3. Create bigrams.
+    b. Topic Modelling
+        1. convert the bigrams into mallet format.
+        2. training topic modelling.
+        3. convert the review-composition 
+    c. Post topic modelling.
+        1. get quick-look and do the cuisine tagging.
+        2. get review_composition.spark.txt and generate model.json
+}
+
+
+{
+    Model Generation happens here
+    ssh -i "krowd.pem" ubuntu@ec2-54-174-158-11.compute-1.amazonaws.com
+}
+
+
+{
+    Restaurant App run here 
+    ssh -i "mumbai-vallies-i4ulabs-com.pem" ubuntu@ec2-13-233-224-3.ap-south-1.compute.amazonaws.com
+}
+ 
+
+
+
+
+
+Topic Modelling inputs 
+    1. For Standalone app
+        -> use review of that particular city(all_bigrams_sampled) and proceed with topic modelling.
+    2. For Cross-border app
+        -> combine the reviews(like all_bigrams_sampled) of each cities and do normalization if required and create one corpus for topic modelling.
+
+Topic Modelling
+
+Navigate to mallet folder 
+
+Create a mallet format input from the bigrams of reviews
+
+bin/mallet import-dir 
+--input /mnt/CrossBorderSampled/all_bigrams_sampled 
+--output /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomato_dubai_trip_london_sampled_input.mallet  
+--keep-sequence 
+--remove-stopwords 
+--extra-stopwords stoplists/en_extra.uniq.txt
+
+bin/mallet import-dir  --input /mnt/CrossBorderSampled/all_bigrams_sampled  --output /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomato_dubai_trip_london_sampled_input.mallet   --keep-sequence  --remove-stopwords  --extra-stopwords stoplists/en_extra.uniq.txt 
+
+Training Topic Modelling
+
+bin/mallet train-topics 
+--input /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomato_dubai_trip_london_sampled_input.mallet 
+--num-topics 180 
+--num-iterations 2000 
+--num-threads 8 
+--optimize-interval 20 
+--optimize-burn-in 200 
+--num-top-words 30 
+--output-model-interval 500 
+--output-model /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomato_dubai_trip_london_model_sampled.model 
+--word-topic-counts-file /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/words_topic_counts_sampled.txt 
+--topic-word-weights-file /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/topic_word_weights_sampled.txt
+--output-state /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomatodubai_trip_london_lda_restaurents_sampled.state.gz 
+--output-state-interval 500 
+--output-doc-topics /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/reviews-topic-composition_sampled.txt  
+--output-topic-keys /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/quick-look_sampled.txt
+
+
+#output-topic-keys and diagnostics file is not coming it showing error.need to check for the specific version of mallet where these are supported.
+#--output-topic-docs /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/output_topic_docs_sampled.txt
+#--diagnostics-file /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/diagnostics_file_sampled.xml
+#--xml-topic-report /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/xml_topic_report_sampled.xml
+
+bin/mallet train-topics  --input /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomato_dubai_trip_london_sampled_input.mallet  --num-topics 180  --num-iterations 2000  --num-threads 8  --optimize-interval 20  --optimize-burn-in 200  --num-top-words 30  --output-model-interval 500  --output-model /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomato_dubai_trip_london_model_sampled.model  --word-topic-counts-file /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/words_topic_counts_sampled.txt  --topic-word-weights-file /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/topic_word_weights_sampled.txt --output-state /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomatodubai_trip_london_lda_restaurents_sampled.state.gz  --output-state-interval 500  --output-doc-topics /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/reviews-topic-composition_sampled.txt   --output-topic-keys /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/quick-look_sampled.txt --diagnostics-file /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/diagnostics_file_sampled.xml --xml-topic-report /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/xml_topic_report_sampled.xml --output-topic-docs /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/output_topic_docs_sampled.txt
+
+bin/mallet train-topics --input /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomato_dubai_trip_london_sampled_input.mallet --num-topics 180 --num-iterations 2000 --num-threads 8 --optimize-interval 20 --optimize-burn-in 200 --num-top-words 30 --output-model-interval 500 --output-model /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomato_dubai_trip_london_model_sampled.model --word-topic-counts-file /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/words_topic_counts_sampled.txt --topic-word-weights-file /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/topic_word_weights_sampled.txt --output-state /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/zomatodubai_trip_london_lda_restaurents_sampled.state.gz --output-state-interval 500 --output-doc-topics /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/reviews-topic-composition_sampled.txt  --output-topic-keys /mnt/CrossBorderSampled/GlobalTopicModel180-sampled/quick-look_sampled.txt
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+Post Topic Modelling and Model Generation
+
+1. Get the quick look file 'quick-look_sampled.txt' and tag the cuisine for each topic.
+2. Get the review-topic-composition file 'reviews-topic-composition_sampled.txt' and convert into spark file to be used in model-generation.
+    (if it is for cross-border then filter for each city and generate the corresponding model.json file for it)
+3. Steps to create the model.json from reviews-topic-composition-spark.txt
+
+    1. login to this server
+    ssh -i "krowd.pem" ubuntu@ec2-54-174-158-11.compute-1.amazonaws.com
+
+    2. put reviews-topic-composition-spark.txt and VoljinCityModelGenerator_combined.scala files at
+    location /mnt
+
+    3. move to spark-2.0.1-bin-hadoop2.7 folder
+
+    4. run this command to start the scala shell
+    ./bin/spark-shell --conf spark.executor.extraClassPath=/root/spark/lib/mysql-connector-java-5.1.38-bin.jar --conf spark.executor.extraLibraryPath=/root/spark/lib/mysql-connector-java-5.1.38-bin.jar --conf spark.driver.extraClassPath=/root/spark/lib/mysql-connector-java-5.1.38-bin.jar --conf spark.driver.extraLibraryPath=/root/spark/lib/mysql-connector-java-5.1.38-bin.jar --packages com.github.nscala-time:nscala-time_2.10:2.6.0,com.databricks:spark-csv_2.10:1.3.0,cc.mallet:mallet:2.0.7 --repositories https://dl.bintray.com/derrickburns/maven/ --conf spark.kryoserializer.buffer.max=512m
+
+
+    5. run the command
+    scala> :load /mnt/VoljinCityModelGenerator_combined.scala
+
+
+To create a soft link in linux
+ln -s file1 link1
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Post Model Generation
+
+1. Plugin the model json to standalone app.
+2. Do testing with some input combination.

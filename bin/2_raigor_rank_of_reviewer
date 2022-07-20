@@ -1,0 +1,130 @@
+#!/usr/bin/env node
+
+/**
+ * Using knex for connection pooling and getting all results in one go.
+ */
+require("console-stamp")(console, {
+    pattern: "dd/mm/yyyy HH:MM:ss.l",
+    colors: {
+        stamp: "green",
+        label: "blue"
+    }
+});
+var trim = require('trim');
+var crypto = require('crypto');
+var und = require('lodash');
+var knex = require('./knex');
+
+var INSERT_BATCH_SIZE_LIMIT = 250;
+var REVIEWER_HELPFULLNESS_AVG = 0;
+var REVIEWER_HELPFULLNESS_STD = 0;
+
+var SELECT_QUERY = 'SELECT u.folink_username, u.helpful_reviews, r.helpful_count FROM reviews r LEFT JOIN users u ON r.user_id = u.id WHERE r.entity_id IN (SELECT a.id FROM entity a LEFT JOIN service_entity b ON b.id = a.entity_id)';
+
+knex.raw(SELECT_QUERY).then(function(rawReviews) {
+    console.log("select query executed!");
+    return rawReviews[0];
+}).then(function (users) {
+    var groupedByUsers = und.groupBy(users, function(user) {
+        return crypto.createHash('md5').update(user.folink_username.trim()).digest("hex");
+    });
+    return und.chain(users).transform(function(result, user) {
+        //crete md5 from string
+        var key = crypto.createHash('md5').update(user.folink_username.trim()).digest("hex");
+        //console.log(result);
+        if (result[key]) {
+            result[key]['total_reviews']++;
+            if (Number(String(user.helpful_count).replace('"','').trim())) {
+                result[key]['helpful_reviews']++;
+            }
+        } else {
+            result[key] = {
+                total_reviews: 1,
+                user_name: user.folink_username,
+                //.match(/\d+/)[0]
+                helpful_votes: user.helpful_reviews ? Number(user.helpful_reviews) : 0,
+                helpful_reviews: user.helpful_count && Number(String(user.helpful_count).replace('"','').trim()) ? 1 : 0
+            }
+        }
+    }).values().value();
+}).then(function (users) {
+    var stats = calculateStatistics(users);
+    REVIEWER_HELPFULLNESS_AVG = stats.avg;
+    REVIEWER_HELPFULLNESS_STD = stats.std;
+    return users;
+}).then(function(users) {
+    var caseStatement = '';
+    var listOfIdsToBeUpdates = '';
+    var numofupdates = 0;
+    for (var i = 0, ii = users.length; i < ii; ++i) {
+        var user = users[i];
+        var helpfulCount = helpfullnessOfUser(user);
+        var helpfullnessScore = calculateHelpfulnessScore(helpfulCount);
+        console.log('User rank for forlink_username %s is %d', user.user_name, helpfullnessScore);
+        caseStatement += ' when folink_username LIKE \'%' + user.user_name.replace(/'/g,"\\'").trim() + '%\' THEN ' + helpfullnessScore;
+        listOfIdsToBeUpdates += '\'' + user.user_name.replace(/'/g,"\\'") + '\',';
+        console.log(listOfIdsToBeUpdates);
+        if ((i % INSERT_BATCH_SIZE_LIMIT == 0 || i == users.length - 1) && i) {
+            var updateQuery = 'UPDATE users SET folink_user_reviewer_rank = CASE ' + caseStatement + ' END, is_updated = 1 where folink_username IN(' + listOfIdsToBeUpdates.replace(/,\s*$/, "") + ');';
+            knex.raw(updateQuery).then(function() {
+                numofupdates++;
+                console.log('Helpfullness scores have been updated for %d entites', INSERT_BATCH_SIZE_LIMIT);
+                if (numofupdates == Math.ceil(ii / INSERT_BATCH_SIZE_LIMIT)) {
+                    console.log('All users have been updated!');
+                    knex.destroy();
+                }
+            }).catch(function (e) {
+                numofupdates++;
+                console.log(e);
+                if (numofupdates == Math.ceil(ii / INSERT_BATCH_SIZE_LIMIT)) {
+                    console.log('All users have been updated but with some errors!');
+                    knex.destroy();
+                }
+            });
+            caseStatement = '';
+            listOfIdsToBeUpdates = '';
+        }
+    }
+}).catch(function (e) {
+    console.log(e);
+});
+
+function calculateHelpfulnessScore(helpfulCount) {
+    var helpfullnessScore = 1;
+    if ((helpfulCount - REVIEWER_HELPFULLNESS_AVG) > 0) {
+        helpfullnessScore = 1 + ((helpfulCount - REVIEWER_HELPFULLNESS_AVG) / REVIEWER_HELPFULLNESS_STD);
+    }
+    return helpfullnessScore;
+}
+
+function calculateStatistics(users) {
+    var sum = 0;
+    var count = 0;
+    var stdsum2 = 0;
+    for (var i = 0, ii = users.length; i < ii; ++i) {
+        var user = users[i];
+        sum += helpfullnessOfUser(user);
+        count++;
+    }
+    var avg = sum / count;
+
+    for (var i = 0, ii = users.length; i < ii; ++i) {
+        var user = users[i];
+        stdsum2 += Math.pow(helpfullnessOfUser(user) - avg, 2);
+    }
+    var std = Math.sqrt(stdsum2 / count);
+
+    return {
+        avg: avg,
+        std: std
+    }
+}
+
+function helpfullnessOfUser(user) {
+    var finalScore = 0;
+    var score = user.helpful_votes * (user.helpful_reviews / user.total_reviews);
+    if (score > 1) {
+        finalScore = Math.log(score) / Math.log(10);
+    }
+    return finalScore;
+}
